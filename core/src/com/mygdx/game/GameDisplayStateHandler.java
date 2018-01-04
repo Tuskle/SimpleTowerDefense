@@ -2,6 +2,7 @@ package com.mygdx.game;
 
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Cursor;
 
 import java.util.concurrent.TimeUnit;
 /**
@@ -11,12 +12,14 @@ import java.util.concurrent.TimeUnit;
 public class GameDisplayStateHandler {
     //short level;
     MyGdxGame game;
+    //boolean firstInit;
 
 
     public GameDisplayStateHandler(MyGdxGame game){
         //level = game.displayState;
         this.game = game;
         game.displayState = 0;
+        //firstInit = false;
     }
 
     public void welcomeScreen(){
@@ -27,15 +30,18 @@ public class GameDisplayStateHandler {
                 try {
 
                     //TimeUnit.SECONDS.sleep(5);
-                    Thread.sleep(5000);
+                    Thread.sleep(500);
                 }
                 catch (Exception e){
                     for (int i=0; i<100000 ; i++){
-                        //short forloop delay if sleep gets interrupted
+                        //short for loop delay if sleep gets interrupted
                     }
                 }
                 mainMenu();//game.displayState = 1; // after welcome screen delay, render will change the state
             }
+
+
+            //TODO implement here to go back to main menu after certain amount of time
         }).start();
 
 
@@ -44,6 +50,7 @@ public class GameDisplayStateHandler {
 
     public void startGame(){
         game.displayState = 2;
+        game.startTime = System.nanoTime();
         Gdx.input.setInputProcessor(game);
     }
 
@@ -52,9 +59,24 @@ public class GameDisplayStateHandler {
     }
 
     public void mainMenu(){
+        //game.reset();
+        //game.reInit();
         Gdx.input.setInputProcessor(game.stage);
         game.displayState = 1;
     }
+    public void optMenu(){
+        //game.reset();
+        //game.reInit();
+        Gdx.input.setInputProcessor(game.stageopt);
+        game.displayState = 4;
+    }
+    public void diffMenu(){
+        //game.reset();
+        game.reInit();
+        Gdx.input.setInputProcessor(game.stageD);
+        game.displayState = 5;
+    }
+
 
 
 }

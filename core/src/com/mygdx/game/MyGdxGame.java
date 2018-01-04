@@ -4,40 +4,39 @@ package com.mygdx.game;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputProcessor;
+import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.Sprite;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.graphics.g2d.*;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.InputEvent;
-import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.ui.Button;
-import com.badlogic.gdx.scenes.scene2d.ui.Skin;
-import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.scenes.scene2d.ui.*;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.SpriteDrawable;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Array;
 
+import java.awt.*;
 import java.util.ArrayDeque;
+import java.util.Date;
 import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import static com.badlogic.gdx.Gdx.files;
 import static com.badlogic.gdx.Gdx.graphics;
 
 
 public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
 
-    ArrayDeque<Enemy> enemies = new ArrayDeque<Enemy>();
-    ArrayDeque<Tower> towers = new ArrayDeque<Tower>();
-    Array<Integer> prostaPolja = new Array<Integer>(); //TODO s for zanko pr create ustvar seznam vseh prostih mest, nato pa jih spotoma ko dodajaš towerje odstranjuješ in po odstranitvi towerja
+    ArrayDeque<Enemy> enemies;
+    ArrayDeque<Tower> towers;
+    Array<Integer> prostaPolja; //TODO s for zanko pr create ustvar seznam vseh prostih mest, nato pa jih spotoma ko dodajaš towerje odstranjuješ in po odstranitvi towerja
     //TODO nazaj notr vržeš , polja so Y vrednosti, za ali je levo ali desno pa dodaj logiko, svetujem da pregleduješ ko dodajaš tower
     int prostaPoljaMeja = 0; //da veš kje se začnejo desni
     private SpriteBatch batch, batchrotated;
@@ -47,21 +46,28 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
     private int SIZE_BOTTOM;
     private short X_CORE_OFFSET = 100;
     public short displayState = 0;
-
+    public int diff=0;
+    public boolean music=false;
     //Screen dimensions will be used to center text
-    private BitmapFont font, zivljenja, denarBitmapFont, scoreBitmapFont, tankPrice, upgradePrice, removeReturn;
+    private BitmapFont font, zivljenja, denarBitmapFont, scoreBitmapFont, tankPrice, upgradePrice, removeReturn, endScoreText;
     private int screenWidth, screenHeight;
     private ShapeRenderer sr;
     private Texture addIcon, upgradeIcon, refundIcon;
     //private Sprite tankBody,tCore;
     //private String message = "Touch me";
+    public long startTime, gameOverTime;
 
+    private short endX, endY;//,endTimer; // end scene variables to draw the gameOver screen
 
-    Texture bg, bgWall, bgCastleFloor, loadingScreen; //handling backgrounds
+    Music bckg;
+    Skin skin;
+    Texture bg, bgWall, bgCastleFloor, loadingScreen,menu; //handling backgrounds
 
     Sprite ldgScreen;
 
-    GameDisplayStateHandler gameHandler;
+    Texture gameOverTexture;
+    Sprite gameOverSprite;
+
 
     ///////////MENU BUTTONS HANDLINGS ////////
 
@@ -69,13 +75,15 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
 
     Skin menuBtnsSkin;
 
-    Button playBtn, top10Btn, quitBtn;
+    //Button playBtn, top10Btn, quitBtn,optBtn,backBtn,muBtn,sfBtn,normBtn,quBtn,backbBtn;
+    TextButton playBtn, top10Btn, quitBtn,optBtn,backBtn,normBtn,quBtn,backbBtn,muBtn;
+    Table table,tableopt,tableD;
 
-    Table table;
-
-    Stage stage;
+    Stage stage,stageopt,stageD;
 
     /////////////////////////////////////////
+
+    GameDisplayStateHandler gameHandler;
 
     private boolean selected = false, selectedMenu = false, platno = true; // selected-pove ali je kater ot towerjev selektiran, selectedMenu pove ali je kater na meniju selektiran(dela samo za tower meni),
     //platno pove ali je na dodajanju towerjev(true) ali pa na upgrejdanju teh(false)
@@ -94,6 +102,7 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
     private int speedDeviation = 0;
     private int sizeDeviation = 0;
     private int enemyType = 0;
+    private int probbability = 0; //tell's how often a different type of tanks spawns
     private int life = 6;
     private long score = 0l;
     private int denar = 400;
@@ -131,6 +140,7 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
     }
 
     public void handleTowers() {
+
         for (Tower s : towers) {
             batch.draw(s.tankBody, s.getY() + s.getOffsetBodyX(), s.getX() + s.getOffsetBodyY());
             //s.aliJeVDosegu(enemies);
@@ -325,7 +335,8 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
         batch.end();
     }
 
-    public void handleEnemies() {
+    @Deprecated
+    public void handleEnemies() {  //Deprecated
 //        private int time=0,timeSeconds = 0; TODO zanimajo nas te deli kode
 //        private int timeDelay=3;
 //        private int speedDeviation=0;
@@ -429,62 +440,142 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
 
     }
 
+    public void enemySpawnLogic() {
+
+        int deltaLifeBuffMultiplier = 1;
+        //Note: Readytoinitialize is true when timer ticks so it prevent's spamming
+
+        switch (enemyType) {
+            case 0:
+                deltaLifeBuffMultiplier = 1;
+                break;
+            case 1:
+                deltaLifeBuffMultiplier = 2;
+                break;
+            case 2:
+                deltaLifeBuffMultiplier = 3;
+                break;
+            case 3:
+                deltaLifeBuffMultiplier = 5;
+                break;
+            case 4:
+                deltaLifeBuffMultiplier = 7;
+                break;
+            case 5:
+                deltaLifeBuffMultiplier = 12;
+                break;
+
+            default:
+                sr.setColor(Color.GOLD);
+                deltaLifeBuffMultiplier += 1;
+        }
+
+        if (time == 119 && enemyType < 6 && readytoInititate) {
+            readytoInititate = false; //enkrat izved
+            enemyType++;
+            sizeDeviation += 10; //SizeDeviation is deprecated, it was used to draw different sizes
+            speedDeviation += 1;
+        } else if (time == 119 && readytoInititate) {
+            readytoInititate = false;
+            sizeDeviation += 10;
+            speedDeviation += 1;
+        }
+
+        Random rnd = new Random();
+
+        if (time < 20 && readytoInititate) { //first, they don't spawn so quickly, it get's quicker over time
+            if (time % 10 == 0) {
+                enemySpawnCase(rnd.nextInt(3) + 1 + speedDeviation, rnd.nextInt(20) + 25 + sizeDeviation, deltaLifeBuffMultiplier, enemyType, rnd);
+            }
+
+        } else if (time < 40 && readytoInititate) {
+            if (time % 10 == 0) {
+                enemySpawnCase(rnd.nextInt(4) + 1 + speedDeviation, rnd.nextInt(30) + 25 + sizeDeviation, deltaLifeBuffMultiplier, enemyType, rnd);
+            }
+
+        } else if (time < 80 && readytoInititate) {
+            if (time % 6 == 0) {
+                enemySpawnCase(rnd.nextInt(4) + 1 + speedDeviation, rnd.nextInt(100) + 25 + sizeDeviation, deltaLifeBuffMultiplier, enemyType, rnd);
+            }
+
+        } else {
+            if (time % 3 == 0 && readytoInititate) {
+                enemySpawnCase(rnd.nextInt(4) + 1 + speedDeviation, rnd.nextInt(100) + 25 + sizeDeviation, deltaLifeBuffMultiplier, enemyType, rnd);
+            }
+        }
+        readytoInititate = false;
+
+    }
+
+    public void enemySpawnCase(int speed, int size, int deltaBuffMul, int enemyType, Random random) { //keep it consistent next time...
+        int selekcija = random.nextInt(20);
+        Enemy enemy;
+        switch (enemyType) {
+            case 0:
+                enemy = new BasicEnemy(size, speed, deltaBuffMul);
+                break;
+
+            case 1:
+                enemy = enemySelection(selekcija,1000, 16, size, speed, deltaBuffMul); //1000 is unreachable
+                break;
+
+            case 2:
+                enemy = enemySelection(selekcija,1000, 12, size, speed, deltaBuffMul); //1000 is unreachable
+                break;
+
+            case 3:
+                enemy = enemySelection(selekcija,1000, 8, size, speed, deltaBuffMul); //1000 is unreachable
+                break;
+
+            case 4:
+                enemy = enemySelection(selekcija,19, 10, size, speed, deltaBuffMul);
+                break;
+
+            case 5:
+                enemy = enemySelection(selekcija,18, 7, size, speed, deltaBuffMul);
+                break;
+
+            default:
+                enemy = enemySelection(selekcija,17, 6, size, speed, deltaBuffMul);
+        }
+
+        enemies.add(enemy);
+
+    }
+
+    public Enemy enemySelection(int sel,int zg, int sp,int size,int speed,int deltaBuffMul){
+        if(sel>=zg){
+            return new BigEnemy(size, speed, deltaBuffMul);
+        }else if(sel < sp) {
+            return new BasicEnemy(size, speed, deltaBuffMul);
+        }else {
+            return new BlueEnemy(size, speed, deltaBuffMul);
+        }
+
+    };
 
     //Set screen dimensions, font, and use this class for input processing
     @Override
     public void create() {
-        startCoreGame();
+
+        initSources();
+        //startCoreGame();
+
         mainMenuInit();
+
+        optionsInit();
+        diffInit();
         menuHelperOnStart();
+        reset();
     }
 
     public void startCoreGame() {
         //denar = 400000;
 
-        loadingScreen = new Texture("loadingScreen.png");
-        loadingScreen.setWrap(Texture.TextureWrap.ClampToEdge, Texture.TextureWrap.ClampToEdge);
 
-        bg = new Texture("pattern.jpg");
-        bg.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
-
-        bgWall = new Texture("castlewall.png");
-        bgWall.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
-
-        bgCastleFloor = new Texture("castleFloor.png");
-        bgCastleFloor.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
-
-
-        batch = new SpriteBatch();
-        batchrotated = new SpriteBatch();
-
-
-        heart = new Texture("life.png");
-        coin = new Texture("coin.png");
-        coinS = new Sprite(coin);
-        heartS = new Sprite(heart);
-
-        tankPrice = new BitmapFont();
-        tankPrice.getData().setScale(3);
-
-        addIcon = new Texture("add.png");
-        upgradeIcon = new Texture("upgrade.png");
-        refundIcon = new Texture("refund.png");
-        upgradePrice = new BitmapFont();
-        upgradePrice.getData().setScale(3);
-        removeReturn = new BitmapFont();
-        removeReturn.getData().setScale(3);
-
-        try {
-            timer = new Timer();
-            timer.schedule(new TajmerHendl(), 0, 500);
-
-        } catch (Exception e) {
-
-        }
-
-
-        screenWidth = graphics.getWidth();
-        screenHeight = graphics.getHeight();
+        enemies = new ArrayDeque<Enemy>();
+        towers = new ArrayDeque<Tower>();
+        prostaPolja = new Array<Integer>();
 
 
         int temp = 0; //da gre do polovice in potem spet znova začne
@@ -508,6 +599,118 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
 
         prostaPoljaMeja = prostaPolja.size / 2;
 
+
+        //Gdx.input.setInputProcessor(this);
+    }
+
+    public void menuHelperOnStart() {
+        gameHandler = new GameDisplayStateHandler(this);
+        gameHandler.welcomeScreen();
+        ldgScreen = new Sprite(loadingScreen);
+        ldgScreen.setSize(screenWidth, screenHeight);
+        ldgScreen.setPosition(0, 0);
+
+    }
+
+    public void reset() {
+        enemyType = 0;
+        life = 6;
+        score = 0l;
+        denar = 400;
+    }
+
+    public void reInit() {
+        reset();
+        startCoreGame();
+    }
+
+
+    public void initSources() { //this only needs to be init at start , but call startCoreGame first?
+
+        bckg=Gdx.audio.newMusic(Gdx.files.internal("othr/music.mp3"));
+
+        loadingScreen = new Texture("loadingScreen.png");
+        loadingScreen.setWrap(Texture.TextureWrap.ClampToEdge, Texture.TextureWrap.ClampToEdge);
+
+        bg = new Texture("pattern.jpg");
+        bg.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
+
+        bgWall = new Texture("castlewall.png");
+        bgWall.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
+
+        bgCastleFloor = new Texture("castleFloor.png");
+        bgCastleFloor.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
+
+        menu = new Texture("pattern.png");
+        menu.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
+
+        batch = new SpriteBatch();
+        batchrotated = new SpriteBatch();
+
+        skin=new Skin(Gdx.files.internal("skin/uiskin.json"));
+        font = new BitmapFont();
+        font.setColor(Color.BLUE);
+
+        gameOverTexture = new Texture("gameOver.png");
+        gameOverSprite = new Sprite(gameOverTexture);
+
+        heart = new Texture("life.png");
+        coin = new Texture("coin.png");
+        coinS = new Sprite(coin);
+        heartS = new Sprite(heart);
+
+        tankPrice = new BitmapFont();
+        addIcon = new Texture("add.png");
+        upgradeIcon = new Texture("upgrade.png");
+        refundIcon = new Texture("refund.png");
+        upgradePrice = new BitmapFont();
+
+
+        denarBitmapFont = new BitmapFont();
+        scoreBitmapFont = new BitmapFont();
+        zivljenja = new BitmapFont(); //flipped
+        zivljenja.setColor(Color.BLUE);
+        zivljenja.getData().setScale(5, 5);
+
+        prostaPolja = new Array<Integer>();
+        screenWidth = graphics.getWidth();
+        screenHeight = graphics.getHeight();
+
+
+        endScoreText = new BitmapFont();
+        endScoreText.getData().setScale(3);
+
+
+        gameOverSprite.setSize(screenHeight / 2, screenHeight / 2 / 4);
+
+        //gameOverSprite.setOrigin(gameOverSprite.getRegionWidth()/2,gameOverSprite.getRegionHeight()/2);
+        gameOverSprite.setOriginCenter();
+
+
+        gameOverSprite.setPosition(screenWidth / 8, screenHeight / 2);
+
+        gameOverSprite.setRotation(90);
+
+
+        //gameOverSprite.setScale(screenHeight / 2, screenWidth / 2);
+
+
+        tankPrice.getData().setScale(3);
+
+
+        upgradePrice.getData().setScale(3);
+        removeReturn = new BitmapFont();
+        removeReturn.getData().setScale(3);
+
+        try {
+            timer = new Timer();
+            timer.schedule(new TajmerHendl(), 0, 500);
+
+        } catch (Exception e) {
+
+        }
+
+
         samples.add(new BasicTower((screenHeight / 5), screenWidth * 9 / 10 + screenWidth / 20 - 25));
         samples.add(new StrongTower((screenHeight * 2 / 5), screenWidth * 9 / 10 + screenWidth / 20 - 25));
 
@@ -525,29 +728,15 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
             SIZE_BOTTOM = screenWidth / 9;
         sr = new ShapeRenderer();
 
-        font = new BitmapFont();
-        font.setColor(Color.BLUE);
+
         font.getData().setScale(5, 5);
 
-        denarBitmapFont = new BitmapFont();
-        scoreBitmapFont = new BitmapFont();
-        zivljenja = new BitmapFont(); //flipped
-        zivljenja.setColor(Color.BLUE);
-        zivljenja.getData().setScale(5, 5);
+
         //coreTank= new Texture("pipe.png");
         //bodyOfTank = new Texture("body_tank.png");
         //tCore=new Sprite(coreTank);
         //tankBody= new Sprite(bodyOfTank);
 
-        Gdx.input.setInputProcessor(this);
-    }
-
-    public void menuHelperOnStart(){
-        gameHandler = new GameDisplayStateHandler(this);
-        gameHandler.welcomeScreen();
-        ldgScreen = new Sprite(loadingScreen);
-        ldgScreen.setSize(screenWidth,screenHeight);
-        ldgScreen.setPosition(0,0);
 
     }
 
@@ -563,6 +752,7 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
         coin.dispose();
         denarBitmapFont.dispose();
         scoreBitmapFont.dispose();
+        endScoreText.dispose();
         tankPrice.dispose();
         addIcon.dispose();
         upgradeIcon.dispose();
@@ -573,14 +763,17 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
         timer.purge();
         bg.dispose();
         bgWall.dispose();
+        menu.dispose();
         bgCastleFloor.dispose();
         loadingScreen.dispose();
+        gameOverTexture.dispose();
 
 
         menuBtns.dispose();
         menuBtnsSkin.dispose();
         stage.dispose();
-
+        stageopt.dispose();
+        stageD.dispose();
         //coreTank.dispose();
         //bodyOfTank.dispose();
         for (Tower s : towers) {
@@ -610,7 +803,7 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
 
-        switch (displayState){
+        switch (displayState) {
             case 0:
                 batch.begin();
 
@@ -624,7 +817,15 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
             case 2:
                 drawMainGame();
                 break;
+            case 4:
+
+                stageopt.draw();
+                break;
+            case 5:
+                stageD.draw();
+                break;
             default:
+                endGameLogic();
 
 
         }
@@ -634,6 +835,11 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
 
     public void drawMainGame() {
 
+        /*if(displayState !=3) { //todo remove
+            endGameSync(); //todo remove
+            gameHandler.gameOver(); //todo remove
+        }*/
+
         sr.begin(ShapeRenderer.ShapeType.Filled);
 
         batch.begin();
@@ -641,23 +847,31 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
         batch.draw(bgCastleFloor, 0, 0, 0, 0, screenWidth, X_CORE_OFFSET);
         batch.draw(bgCastleFloor, 0, screenHeight - X_CORE_OFFSET, 0, 0, screenWidth, X_CORE_OFFSET);
 
+        ///////////wall drawing//////////////////
+        batch.draw(bgWall, 0, X_CORE_OFFSET, 0, 0, screenWidth, 25); //25 is the thickness of wall
+        batch.draw(bgWall, 0, screenHeight - X_CORE_OFFSET - 25, 0, 0, screenWidth, 25);
+        drawEnemies();
+
         batch.end();
 
-        handleEnemies();
+        //handleEnemies(); //Deprecated
+        enemySpawnLogic();
 
 
-        if (life < 1) {
-            System.exit(0);
+        if (life < 1 && displayState != 3) { //displaystate prevention of spamming
+            endGameSync();
+            gameHandler.gameOver();
         }
+
 
         //sr.setColor((float)1.0*66/255, (float)1.0*215/255, (float)1.0*244/255,1);
         sr.setColor((float) 0.9, (float) 0.9, (float) 0.9, 1);
 
         ///////////wall drawing//////////////////
-        batch.begin();
+        /*batch.begin();
         batch.draw(bgWall, 0, X_CORE_OFFSET, 0, 0, screenWidth, 25); //25 is the thickness of wall
         batch.draw(bgWall, 0, screenHeight - X_CORE_OFFSET - 25, 0, 0, screenWidth, 25);
-        batch.end();
+        batch.end();*/
 
         //sr.rect(0, X_CORE_OFFSET, screenWidth, 25); // y  , x , height , width
         //sr.rect(0, screenHeight - X_CORE_OFFSET - 25, screenWidth, 25); // y , x ,height , width // X_CORE:OFFSET -25 default
@@ -713,15 +927,6 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
             batch.draw(refundIcon, screenWidth - SIZE_BOTTOM / 2 - 82, 2 * screenHeight / 3);
         }
 
-        for (Enemy e : enemies) {
-            e.bodySprite.setPosition(e.y, e.x);
-            e.bodySprite.draw(batch);
-            e.premikaj();
-            if (e.y >= screenWidth) { // if enemy comes to finish
-                this.life--;
-                enemies.remove(e);
-            }
-        }
 
         //font.draw(batch, message, 100, 100);
         heartS.setRotation(90);
@@ -731,6 +936,7 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
         coinS.draw(batch);
         //batch.draw(tankBody,screenWidth/10,100);
         //tCore.setOrigin(10,10);
+
         handleTowers();
         handleCoreRotation();
         //batch.draw(tCore,screenWidth/10+5,105);
@@ -743,7 +949,183 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
 
     }
 
+    public void endGameLogic() {
 
+        if (endX < screenHeight / 2) {
+            drawMainGame();
+        }
+
+        sr.begin(ShapeRenderer.ShapeType.Filled);
+        sr.setColor(Color.GRAY);
+        sr.rect(screenWidth / 2 - endY, screenHeight / 2 - endX, endY * 2, endX * 2);
+        sr.end();
+
+
+        if (endX >= screenHeight / 2) {
+            batch.begin();
+
+            gameOverSprite.draw(batch);
+
+            //batch.draw(gameOverSprite, screenHeight / 4, screenWidth / 8, screenHeight / 2, screenWidth / 2);
+            batch.end();
+            batchrotated.begin();
+            endScoreText.draw(batchrotated, "score:" + score, screenHeight / 2 - endScoreText.getLineHeight(), -screenWidth / 2);
+            batchrotated.end();
+        }
+    }
+
+    public void endGameSync() { //data parallel synchronization for rendering
+        //endTimer = 0;
+        endX = 0; //TODO prever sinhronizacijo!
+        endY = 0;
+
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                for (endX = 0; endX < (screenHeight) / 2; endX++) {
+                    endY = (short) ((screenWidth * endX * 1.0) / screenHeight); //here only the variables change, rendering calls endGameLogic where the rendering will take place
+                    try {
+                        Thread.sleep(7);
+                    } catch (InterruptedException e) {
+
+                    }
+
+                }
+
+                try {
+                    Thread.sleep(5000);
+                } catch (Exception e) {
+
+                }
+
+                gameHandler.mainMenu();
+            }
+        }).start();
+
+
+        gameOverTime = System.nanoTime() - startTime;
+        Date date = new Date();
+
+        new NetAPITest().create(gameOverTime, score, date, Gdx.app.getType().toString());
+        //handleRequest();
+
+
+    }
+
+    /*public void handleRequest(){
+        Net.HttpRequest httpGet = new Net.HttpRequest(Net.HttpMethods.GET);
+        httpGet.setUrl("http://www.api.nejcribic.com/TowerDefenseStatistics/root/app/api.php?send/time=100&score=100&date=1020&device=android");
+        //httpGet.setContent(HttpParametersUtils.convertHttpParameters(parameters));
+        Gdx.net.sendHttpRequest (httpGet, new Net.HttpResponseListener() {
+            public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                String status = httpResponse.getResultAsString();
+                //do stuff here based on response
+            }
+
+            public void failed(Throwable t) {
+                String status = "failed";
+                //do stuff here based on the failed attempt
+            }
+
+            @Override
+            public void cancelled() {
+                return;
+            }
+        });
+    }*/
+    public void diffInit() {
+        menuBtns = new TextureAtlas("button.pack");
+        menuBtnsSkin = new Skin(menuBtns);
+
+        stageD = new Stage();
+
+        tableD = new Table();
+        tableD.setBounds(0, 0, screenWidth, screenHeight);
+        tableD.background(new SpriteDrawable(new Sprite(menu,screenWidth,screenHeight)));
+        //normBtn = new Button(menuBtnsSkin.getDrawable("playBtn"));
+        //quBtn = new Button(menuBtnsSkin.getDrawable("top10"));
+        //backbBtn=new Button(menuBtnsSkin.getDrawable("quit"));
+        normBtn = new TextButton("Normal",skin);
+
+        quBtn = new TextButton("Quick",skin);
+
+        backbBtn=new TextButton("Back",skin);
+
+
+        normBtn.setTransform(true);
+        quBtn.setTransform(true);
+        backbBtn.setTransform(true);
+        //diffBtn.setTransform(true);
+
+
+        normBtn.setOrigin(menuBtnsSkin.getDrawable("playBtn").getMinWidth() / 2, menuBtnsSkin.getDrawable("playBtn").getMinHeight() / 2);
+        //diffBtn.setOrigin(menuBtnsSkin.getDrawable("top10").getMinWidth() / 2, menuBtnsSkin.getDrawable("top10").getMinHeight() / 2);
+        quBtn.setOrigin(menuBtnsSkin.getDrawable("quit").getMinWidth() / 2, menuBtnsSkin.getDrawable("quit").getMinHeight() / 2);
+        backbBtn.setOrigin(menuBtnsSkin.getDrawable("quit").getMinWidth() / 2, menuBtnsSkin.getDrawable("quit").getMinHeight() / 2);
+        //diffBtn.setOrigin(menuBtnsSkin.getDrawable("quit").getMinWidth() / 2, menuBtnsSkin.getDrawable("quit").getMinHeight() / 2);
+
+        normBtn.setRotation(90);
+        //diffBtn.setRotation(90);
+        quBtn.setRotation(90);
+        backbBtn.setRotation(90);
+
+        normBtn.getLabel().setFontScale(5.f);
+        backbBtn.getLabel().setFontScale(5.f);
+        quBtn.getLabel().setFontScale(5.f);
+        normBtn.setSize(screenWidth/6,screenHeight/8);
+        quBtn.setSize(screenWidth/6,screenHeight/8);
+        backbBtn.setSize(screenWidth/6,screenHeight/8);
+        /*ChangeListener cl = new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                if (((Button) actor).getName().equals("playBtn")){
+                    gameHandler.startGame();
+                }
+            }
+        };
+
+        playBtn.addListener(cl);*/
+
+        normBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                gameHandler.startGame();
+            }
+        });
+
+        quBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                //TODO Implement
+                gameHandler.startGame();
+                diff=1;
+            }
+        });
+        backbBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                gameHandler.mainMenu();
+            }
+        });
+
+
+
+        tableD.add(normBtn).size(normBtn.getWidth(),normBtn.getHeight());
+        tableD.add(quBtn).size(quBtn.getWidth(),quBtn.getHeight());
+        tableD.add(backbBtn).size(backbBtn.getWidth(),backbBtn.getHeight());
+
+        //      table.add(diffBtn);
+
+        /*table.setTransform(true);
+
+        table.setRotation(90);
+        table.setOrigin(screenWidth/2,screenHeight/2);
+        table.setPosition(0,0);
+        //OBRNE VSE UKUP NA 90 STOPINJ IN SO NAROBE POSTACKAN*/
+        stageD.addActor(tableD);
+
+    }
     public void mainMenuInit() {
         menuBtns = new TextureAtlas("button.pack");
         menuBtnsSkin = new Skin(menuBtns);
@@ -751,25 +1133,45 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
         stage = new Stage();
 
         table = new Table();
-        table.setBounds(0,0,screenWidth,screenHeight);
+        table.setBounds(0, 0, screenWidth, screenHeight);
+        table.background(new SpriteDrawable(new Sprite(menu,screenWidth,screenHeight)));
 
-        playBtn = new Button(menuBtnsSkin.getDrawable("playBtn"));
+        /*playBtn = new Button(menuBtnsSkin.getDrawable("playBtn"));
         top10Btn = new Button(menuBtnsSkin.getDrawable("top10"));
         quitBtn = new Button(menuBtnsSkin.getDrawable("quit"));
+        optBtn= new Button(menuBtnsSkin.getDrawable("quit"));*/
+        playBtn = new TextButton("Play",skin);
+        top10Btn = new TextButton("Top 10", skin);
+        quitBtn = new TextButton("Quit",skin);
+        optBtn= new TextButton("Options",skin);
+        //diffBtn= new Button(menuBtnsSkin.getDrawable("quit"));
+        //backBtn= new Button(menuBtnsSkin.getDrawable("quit"));
 
         playBtn.setTransform(true);
         top10Btn.setTransform(true);
         quitBtn.setTransform(true);
+        optBtn.setTransform(true);
+        //diffBtn.setTransform(true);
 
-        playBtn.setOrigin(menuBtnsSkin.getDrawable("playBtn").getMinWidth()/2,menuBtnsSkin.getDrawable("playBtn").getMinHeight()/2);
-        top10Btn.setOrigin(menuBtnsSkin.getDrawable("top10").getMinWidth()/2,menuBtnsSkin.getDrawable("top10").getMinHeight()/2);
-        quitBtn.setOrigin(menuBtnsSkin.getDrawable("quit").getMinWidth()/2,menuBtnsSkin.getDrawable("quit").getMinHeight()/2);
-
+        playBtn.setOrigin(menuBtnsSkin.getDrawable("playBtn").getMinWidth() / 2, menuBtnsSkin.getDrawable("playBtn").getMinHeight() / 2);
+        top10Btn.setOrigin(menuBtnsSkin.getDrawable("top10").getMinWidth() / 2, menuBtnsSkin.getDrawable("top10").getMinHeight() / 2);
+        quitBtn.setOrigin(menuBtnsSkin.getDrawable("quit").getMinWidth() / 2, menuBtnsSkin.getDrawable("quit").getMinHeight() / 2);
+        optBtn.setOrigin(menuBtnsSkin.getDrawable("quit").getMinWidth() / 2, menuBtnsSkin.getDrawable("quit").getMinHeight() / 2);
+        //diffBtn.setOrigin(menuBtnsSkin.getDrawable("quit").getMinWidth() / 2, menuBtnsSkin.getDrawable("quit").getMinHeight() / 2);
 
         playBtn.setRotation(90);
         top10Btn.setRotation(90);
         quitBtn.setRotation(90);
-
+        optBtn.setRotation(90);
+        //diffBtn.setRotation(90);
+        playBtn.getLabel().setFontScale(5.f);
+        top10Btn.getLabel().setFontScale(5.f);
+        optBtn.getLabel().setFontScale(5.f);
+        quitBtn.getLabel().setFontScale(5.f);
+        playBtn.setSize(screenWidth/6,screenHeight/8);
+        top10Btn.setSize(screenWidth/6,screenHeight/8);
+        optBtn.setSize(screenWidth/6,screenHeight/8);
+        quitBtn.setSize(screenWidth/6,screenHeight/8);
         /*ChangeListener cl = new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -783,30 +1185,39 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
 
         playBtn.addListener(new ChangeListener() {
             @Override
-            public void changed (ChangeEvent event, Actor actor) {
-                gameHandler.startGame();
+            public void changed(ChangeEvent event, Actor actor) {
+                gameHandler.diffMenu();
             }
         });
 
         top10Btn.addListener(new ChangeListener() {
             @Override
-            public void changed (ChangeEvent event, Actor actor) {
+            public void changed(ChangeEvent event, Actor actor) {
                 //TODO Implement
             }
         });
-
+        optBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                gameHandler.optMenu();
+                //TODO Implement
+            }
+        });
         quitBtn.addListener(new ChangeListener() {
             @Override
-            public void changed (ChangeEvent event, Actor actor) {
+            public void changed(ChangeEvent event, Actor actor) {
                 dispose();
                 System.exit(0);
             }
         });
 
 
-        table.add(playBtn);
-        table.add(top10Btn);
-        table.add(quitBtn);
+        table.add(playBtn).size(playBtn.getWidth(),playBtn.getHeight());
+        table.add(top10Btn).size(top10Btn.getWidth(),top10Btn.getHeight());
+        table.add(optBtn).size(optBtn.getWidth(),optBtn.getHeight());
+        table.add(quitBtn).size(quitBtn.getWidth(),quitBtn.getHeight());
+
+  //      table.add(diffBtn);
 
         /*table.setTransform(true);
 
@@ -816,6 +1227,113 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
         //OBRNE VSE UKUP NA 90 STOPINJ IN SO NAROBE POSTACKAN*/
         stage.addActor(table);
 
+    }
+    public void optionsInit() {
+        menuBtns = new TextureAtlas("button.pack");
+        menuBtnsSkin = new Skin(menuBtns);
+
+        stageopt = new Stage();
+        stageopt.addActor(new Image(menu));
+        tableopt = new Table();
+        tableopt.setBounds(0, 0, screenWidth, screenHeight);
+        tableopt.background(new SpriteDrawable(new Sprite(menu,screenWidth,screenHeight)));
+        /*sfBtn= new Button(menuBtnsSkin.getDrawable("quit"));
+        muBtn= new Button(menuBtnsSkin.getDrawable("quit"));
+        backBtn= new Button(menuBtnsSkin.getDrawable("top10"));*/
+        //sfBtn= new CheckBox("Sound Effects:On",skin);
+        muBtn= new TextButton("Music:Off",skin);
+        backBtn= new TextButton("Back",skin);
+        //sfBtn.setTransform(true);
+        muBtn.setTransform(true);
+        backBtn.setTransform(true);
+
+        muBtn.setOrigin(menuBtnsSkin.getDrawable("quit").getMinWidth() / 2, menuBtnsSkin.getDrawable("quit").getMinHeight() / 2);
+        //sfBtn.setOrigin(menuBtnsSkin.getDrawable("quit").getMinWidth() / 2, menuBtnsSkin.getDrawable("quit").getMinHeight() / 2);
+        backBtn.setOrigin(menuBtnsSkin.getDrawable("quit").getMinWidth() / 2, menuBtnsSkin.getDrawable("quit").getMinHeight() / 2);
+
+        muBtn.setRotation(90);
+        //sfBtn.setRotation(90);
+        backBtn.setRotation(90);
+
+        muBtn.getLabel().setFontScale(5.f);
+
+        backBtn.getLabel().setFontScale(5.f);
+        //sfBtn.getLabel().setFontScale(5.f);
+        muBtn.setSize(screenWidth/6,screenHeight/8);
+
+        //sfBtn.setSize(screenWidth/6,screenHeight/8);
+        backBtn.setSize(screenWidth/6,screenHeight/8);
+
+        /*ChangeListener cl = new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                if (((Button) actor).getName().equals("playBtn")){
+                    gameHandler.startGame();
+                }
+            }
+        };
+
+        playBtn.addListener(cl);*/
+
+        muBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                music = !music;
+                if (music) {
+                    bckg.play();
+                    bckg.setLooping(true);
+                    bckg.setVolume(0.25f);
+                    muBtn.getLabel().setText("Music:On");
+                } else {
+                    bckg.stop();
+                    muBtn.getLabel().setText("Music:Off");
+                }
+            }
+        });
+/*
+        sfBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                //TODO Implement
+            }
+        });
+*/
+        backBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                gameHandler.mainMenu();
+            }
+        });
+
+
+        tableopt.add(muBtn).size(muBtn.getWidth(),muBtn.getHeight());
+        //tableopt.add(sfBtn).size(sfBtn.getWidth(),sfBtn.getHeight());
+        tableopt.add(backBtn).size(backBtn.getWidth(),backBtn.getHeight());
+        /*table.setTransform(true);
+
+        table.setRotation(90);
+        table.setOrigin(screenWidth/2,screenHeight/2);
+        table.setPosition(0,0);
+        //OBRNE VSE UKUP NA 90 STOPINJ IN SO NAROBE POSTACKAN*/
+        stageopt.addActor(tableopt);
+
+    }
+
+    public void drawEnemies() {
+        try {
+
+            for (Enemy e : enemies) {
+                e.bodySprite.setPosition(e.y, e.x);
+                e.bodySprite.draw(batch);
+                e.premikaj();
+                if (e.y >= screenWidth) { // if enemy comes to finish
+                    this.life--;
+                    enemies.remove(e);
+                }
+            }
+        } catch (Exception e) {
+
+        }
     }
 
     //Return true to indicate that the event was handled
@@ -1014,6 +1532,7 @@ public class MyGdxGame extends ApplicationAdapter implements InputProcessor {
     }
 
 }
+
 
 class TajmerHendl extends TimerTask {
     @Override
